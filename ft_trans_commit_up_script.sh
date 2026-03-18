@@ -11,12 +11,180 @@ ORANGE=$'\033[1;38;5;208m'
 LIGHT_RED=$'\033[1;91m'
 RESET=$'\033[0m'
 
+show_help() {
+    local script_name
+    script_name=$(resolve_help_name)
+    cat <<'EOF' | sed "s/__SCRIPT__/${script_name}/g"
+Uso: __SCRIPT__
+    [file ...] --> per git add di singoli file
+    --help     --> display delle istruzioni di utilizzo
+    --keys     --> display di tutte le Keywords
+    --add      --> aggiunge una Keyword all'albero principale
+EOF
+}
+
+show_keys() {
+    local keys key last_key
+    mapfile -t keys < <(printf '%s\n' "${!KEYWORDS[@]}" | sort)
+
+    printf "\nKeyword commit:\n\n  KEYWORDS:\n  |\n"
+
+    for key in "${keys[@]}"; do
+        last_key="${keys[-1]}"
+
+        if [[ "$key" == "$last_key" ]]; then
+            printf '  `-- %b\n' "${KEYWORDS[$key]}"
+        else
+            printf "  |-- %b\n" "${KEYWORDS[$key]}"
+        fi
+
+        if [[ "$key" == "BUG" ]]; then
+            mapfile -t bug_keys < <(printf '%s\n' "${!BUG_STATES[@]}" | sort)
+            local i=0
+            local total=${#bug_keys[@]}
+            for b in "${bug_keys[@]}"; do
+                ((i++))
+                if [[ $i -eq $total ]]; then
+                    printf '  |   `--> %b\n' "${BUG_STATES[$b]}"
+                else
+                    printf "  |   |--> %b\n" "${BUG_STATES[$b]}"
+                fi
+            done
+        fi
+
+        if [[ "$key" == "FEATURE" ]]; then
+            mapfile -t feature_keys < <(printf '%s\n' "${!FEATURE_STATES[@]}" | sort)
+            local i=0
+            local total=${#feature_keys[@]}
+            for f in "${feature_keys[@]}"; do
+                ((i++))
+                if [[ $i -eq $total ]]; then
+                    printf '  |   `--> %b\n' "${FEATURE_STATES[$f]}"
+                else
+                    printf "  |   |--> %b\n" "${FEATURE_STATES[$f]}"
+                fi
+            done
+        fi
+
+        if [[ "$key" != "$last_key" ]]; then
+            printf "  |\n"
+        fi
+    done
+}
+
+resolve_help_name() {
+    local script_name script_base aliases line name cmd
+    script_name=$(basename "$0")
+    script_base="${0##*/}"
+
+    # 1) Se definito esplicitamente
+    if [[ -n "${ALIAS_NAME:-}" ]]; then
+        echo "$ALIAS_NAME"
+        return 0
+    fi
+
+    # 2) Prova a cercare un alias che punti a questo script
+    if command -v bash >/dev/null 2>&1; then
+        aliases=$(bash -lic 'alias' 2>/dev/null)
+        while IFS= read -r line; do
+            [[ "$line" != alias* ]] && continue
+            name="${line#alias }"
+            name="${name%%=*}"
+            cmd="${line#*=}"
+
+            if [[ "$cmd" == *"$script_base"* || "$cmd" == *"$script_name"* ]]; then
+                echo "$name"
+                return 0
+            fi
+        done <<< "$aliases"
+    fi
+
+    # 3) Fallback al nome file
+    echo "$script_name"
+}
+
+add_keyword() {
+    local raw_name color_name kw entry script_path tmp_file repo_dir confirm
+    raw_name="$1"
+    color_name="${2:-}"
+
+    if [[ -z "$raw_name" ]]; then
+        read -p "Nuova keyword: " raw_name
+    fi
+
+    kw=$(echo "$raw_name" | tr '[:lower:]' '[:upper:]')
+    if [[ -z "$kw" ]]; then
+        echo "Keyword vuota, annullo."
+        exit 1
+    fi
+
+    if [[ -z "$color_name" ]]; then
+        echo "Colori disponibili: red, green, yellow, cyan, orange, light_red"
+        read -p "Colore (default: cyan): " color_name
+    fi
+
+    case "${color_name,,}" in
+        red) color_name="RED" ;;
+        green) color_name="GREEN" ;;
+        yellow) color_name="YELLOW" ;;
+        cyan|"") color_name="CYAN" ;;
+        orange) color_name="ORANGE" ;;
+        light_red|lightred) color_name="LIGHT_RED" ;;
+        *)
+            echo "Colore non valido, uso CYAN."
+            color_name="CYAN"
+            ;;
+    esac
+
+    entry='["'"$kw"'"]="${'"$color_name"'}'"$kw"'${RESET}"'
+
+    script_path=$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")
+    if command -v rg >/dev/null 2>&1; then
+        rg -q "\\[\"$kw\"\\]" "$script_path"
+        exists=$?
+    else
+        grep -q "\\[\"$kw\"\\]" "$script_path"
+        exists=$?
+    fi
+    if [[ $exists -eq 0 ]]; then
+        echo "Keyword '$kw' già presente."
+        exit 0
+    fi
+
+    tmp_file="$(mktemp)"
+    if ! awk -v entry="$entry" '
+        $0 ~ /KEYWORDS=\(/ {print; in_block=1; next}
+        in_block && $0 ~ /^\)/ {print entry; print; in_block=0; next}
+        {print}
+    ' "$script_path" > "$tmp_file"; then
+        echo "Errore durante l'aggiornamento del file."
+        rm -f "$tmp_file"
+        exit 1
+    fi
+    mv "$tmp_file" "$script_path"
+
+    echo "Keyword '$kw' aggiunta."
+
+    repo_dir=$(cd "$(dirname "$script_path")" && pwd)
+    if git -C "$repo_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        read -p "Vuoi fare add/commit/push della keyword? (y/n): " confirm
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            git -C "$repo_dir" add "$script_path"
+            git -C "$repo_dir" commit -m "Add keyword $kw"
+            git -C "$repo_dir" push
+        fi
+    else
+        echo "Repo git non trovata, niente push."
+    fi
+}
+
 # --- Keyword primarie con colore ---
 declare -A KEYWORDS
 KEYWORDS=(
 ["PERFORMANCE"]="${CYAN}PERFORMANCE${RESET}"
 ["BUG"]="${RED}BUG${RESET}"
 ["FEATURE"]="${YELLOW}FEATURE${RESET}"
+["TEST"]="${RED}TEST${RESET}"
 )
 
 # --- Stati BUG ---
@@ -25,7 +193,6 @@ BUG_STATES=(
 ["solved"]="${GREEN}SOLVED${RESET}"
 ["found"]="${YELLOW}FOUND${RESET}"
 ["fix"]="${ORANGE}FIX IN PROGRESS${RESET}"
-["fix in progress"]="${ORANGE}FIX IN PROGRESS${RESET}"
 )
 
 # --- Stati Feature ---
@@ -34,6 +201,28 @@ FEATURE_STATES=(
 ["new"]="${GREEN}NEW${RESET}"
 ["update"]="${CYAN}UPDATE${RESET}"
 )
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    show_help
+    exit 0
+fi
+
+if [[ "$1" == "--keys" || "$1" == "-k" ]]; then
+    show_keys
+    exit 0
+fi
+
+if [[ "$1" == "--add" ]]; then
+    add_keyword "$2" "$3"
+    exit 0
+fi
+
+# --- Flag sconosciuta ---
+if [[ -n "$1" && "$1" == -* ]]; then
+    echo "Flag non riconosciuta: $1"
+    show_help
+    exit 1
+fi
 
 # --- Controllo repo git ---
 if [ ! -d "$CALL_DIR/.git" ]; then
@@ -134,14 +323,25 @@ while true; do
     fi
 done
 
-# --- File modificati (robusto) ---
-changed_files=$(git diff --name-only)
+# --- File modificati (robusto, include untracked e spazi) ---
+files=()
+while IFS= read -r -d '' entry; do
+    status="${entry:0:2}"
+    path="${entry:3}"
+
+    # R/C in formato -z: status + " " + old + "\0" + new + "\0"
+    if [[ "$status" == R* || "$status" == C* ]]; then
+        IFS= read -r -d '' path
+    fi
+
+    files+=("$path")
+done < <(git status --porcelain -z -uall)
 
 file_list=""
 count=0
-total=$(echo "$changed_files" | wc -l)
+total=${#files[@]}
 
-for file in $changed_files; do
+for file in "${files[@]}"; do
     ((count++))
 
     if [[ $count -le 10 ]]; then
@@ -156,6 +356,10 @@ done
 if [[ $total -gt 10 ]]; then
     file_list="$file_list..."
     echo "Edo piantala"
+fi
+
+if [[ $total -eq 0 ]]; then
+    file_list="Belin quanto lavori eh, schiena di cristallo"
 fi
 
 # --- Costruzione commit ---
