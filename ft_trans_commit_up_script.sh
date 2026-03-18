@@ -276,16 +276,19 @@ KEYWORDS=(
 # --- Stati BUG ---
 declare -A BUG_STATES
 BUG_STATES=(
-["FIXED"]="${GREEN}FIXED${RESET}"
-["FOUND"]="${YELLOW}FOUND${RESET}"
-["FIXING"]="${ORANGE}FIX IN PROGRESS${RESET}"
+["solved"]="${GREEN}SOLVED${RESET}"
+["found"]="${YELLOW}FOUND${RESET}"
+["fix"]="${ORANGE}FIX IN PROGRESS${RESET}"
+["fix in progress"]="${ORANGE}FIX IN PROGRESS${RESET}"
+["fixed"]="${GREEN}SOLVED${RESET}"
+["fixing"]="${ORANGE}FIX IN PROGRESS${RESET}"
 )
 
 # --- Stati Feature ---
 declare -A FEATURE_STATES
 FEATURE_STATES=(
-["NEW"]="${GREEN}NEW${RESET}"
-["UPDATE"]="${CYAN}UPDATE${RESET}"
+["new"]="${GREEN}NEW${RESET}"
+["update"]="${CYAN}UPDATE${RESET}"
 )
 
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
