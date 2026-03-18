@@ -57,7 +57,7 @@ find "$CALL_DIR" -type f -name "Makefile" | while read -r makefile; do
     (cd "$dir" && make fclean)
 done
 
-# --- Gestione git add ---
+# --- Controllo esistenza file (git add verrà fatto dopo) ---
 if [ "$#" -gt 0 ]; then
     for file in "$@"; do
         if [ ! -e "$file" ]; then
@@ -65,9 +65,6 @@ if [ "$#" -gt 0 ]; then
             exit 1
         fi
     done
-    git add "$@"
-else
-    git add .
 fi
 
 # --- Mostra keyword disponibili ---
@@ -163,6 +160,13 @@ fi
 
 # --- Costruzione commit ---
 commit_msg="$HEADER | $msg | $file_list"
+
+# --- Gestione git add (dopo formato commit) ---
+if [ "$#" -gt 0 ]; then
+    git add "$@"
+else
+    git add .
+fi
 
 # --- Git operations ---
 git commit -m "$commit_msg"
