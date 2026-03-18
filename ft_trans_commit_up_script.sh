@@ -268,10 +268,6 @@ remove_keyword() {
 # --- Keyword primarie con colore ---
 declare -A KEYWORDS
 KEYWORDS=(
-["PERFORMANCE"]="${CYAN}PERFORMANCE${RESET}"
-["BUG"]="${RED}BUG${RESET}"
-["FEATURE"]="${YELLOW}FEATURE${RESET}"
-["TEST"]="${RED}T${YELLOW}E${GREEN}S${CYAN}T${RESET}"
 )
 
 # --- Stati BUG ---
