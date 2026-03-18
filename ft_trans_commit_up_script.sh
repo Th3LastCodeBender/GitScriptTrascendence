@@ -9,6 +9,10 @@ YELLOW=$'\033[1;33m'
 CYAN=$'\033[1;36m'
 ORANGE=$'\033[1;38;5;208m'
 LIGHT_RED=$'\033[1;91m'
+BLUE=$'\033[1;34m'
+MAGENTA=$'\033[1;35m'
+WHITE=$'\033[1;97m'
+GRAY=$'\033[0;90m'
 RESET=$'\033[0m'
 
 show_help() {
@@ -16,10 +20,13 @@ show_help() {
     script_name=$(resolve_help_name)
     cat <<'EOF' | sed "s/__SCRIPT__/${script_name}/g"
 Uso: __SCRIPT__
+
+    __SCRIPT__ --> git add . guidato
     [file ...] --> per git add di singoli file
     --help     --> display delle istruzioni di utilizzo
     --keys     --> display di tutte le Keywords
     --add      --> aggiunge una Keyword all'albero principale
+    --remove   --> rimuove una Keyword dall'albero principale
 EOF
 }
 
@@ -33,41 +40,47 @@ show_keys() {
         last_key="${keys[-1]}"
 
         if [[ "$key" == "$last_key" ]]; then
-            printf '  `-- %b\n' "${KEYWORDS[$key]}"
+            printf '  -- %b\n' "${KEYWORDS[$key]}"
+            branch_prefix="  "
+            child_prefix="      "
         else
             printf "  |-- %b\n" "${KEYWORDS[$key]}"
+            branch_prefix="  |"
+            child_prefix="  |   "
         fi
 
         if [[ "$key" == "BUG" ]]; then
+            printf "%s|\n" "$child_prefix"
             mapfile -t bug_keys < <(printf '%s\n' "${!BUG_STATES[@]}" | sort)
             local i=0
             local total=${#bug_keys[@]}
             for b in "${bug_keys[@]}"; do
                 ((i++))
                 if [[ $i -eq $total ]]; then
-                    printf '  |   `--> %b\n' "${BUG_STATES[$b]}"
+                    printf "%s--> %b\n" "$child_prefix" "${BUG_STATES[$b]}"
                 else
-                    printf "  |   |--> %b\n" "${BUG_STATES[$b]}"
+                    printf "%s|--> %b\n" "$child_prefix" "${BUG_STATES[$b]}"
                 fi
             done
         fi
 
         if [[ "$key" == "FEATURE" ]]; then
+            printf "%s|\n" "$child_prefix"
             mapfile -t feature_keys < <(printf '%s\n' "${!FEATURE_STATES[@]}" | sort)
             local i=0
             local total=${#feature_keys[@]}
             for f in "${feature_keys[@]}"; do
                 ((i++))
                 if [[ $i -eq $total ]]; then
-                    printf '  |   `--> %b\n' "${FEATURE_STATES[$f]}"
+                    printf "%s--> %b\n" "$child_prefix" "${FEATURE_STATES[$f]}"
                 else
-                    printf "  |   |--> %b\n" "${FEATURE_STATES[$f]}"
+                    printf "%s|--> %b\n" "$child_prefix" "${FEATURE_STATES[$f]}"
                 fi
             done
         fi
 
         if [[ "$key" != "$last_key" ]]; then
-            printf "  |\n"
+            printf "%s\n" "$branch_prefix"
         fi
     done
 }
@@ -119,7 +132,7 @@ add_keyword() {
     fi
 
     if [[ -z "$color_name" ]]; then
-        echo "Colori disponibili: red, green, yellow, cyan, orange, light_red"
+        echo "Colori disponibili: red, green, yellow, cyan, orange, light_red, blue, magenta, white, gray, giorgio"
         read -p "Colore (default: cyan): " color_name
     fi
 
@@ -130,13 +143,31 @@ add_keyword() {
         cyan|"") color_name="CYAN" ;;
         orange) color_name="ORANGE" ;;
         light_red|lightred) color_name="LIGHT_RED" ;;
+        blue) color_name="BLUE" ;;
+        magenta) color_name="MAGENTA" ;;
+        white) color_name="WHITE" ;;
+        gray|grey) color_name="GRAY" ;;
+        giorgio) color_name="GIORGIO" ;;
         *)
             echo "Colore non valido, uso CYAN."
             color_name="CYAN"
             ;;
     esac
 
-    entry='["'"$kw"'"]="${'"$color_name"'}'"$kw"'${RESET}"'
+    if [[ "$color_name" == "GIORGIO" ]]; then
+        local colors rainbow_expr i c color
+        colors=(RED YELLOW GREEN CYAN BLUE MAGENTA)
+        rainbow_expr=""
+        for ((i=0; i<${#kw}; i++)); do
+            c="${kw:i:1}"
+            color="${colors[i % ${#colors[@]}]}"
+            rainbow_expr+='${'"$color"'}'"$c"
+        done
+        rainbow_expr+='${RESET}'
+        entry='["'"$kw"'"]='"\"$rainbow_expr\""
+    else
+        entry='["'"$kw"'"]="${'"$color_name"'}'"$kw"'${RESET}"'
+    fi
 
     script_path=$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")
     if command -v rg >/dev/null 2>&1; then
@@ -178,27 +209,84 @@ add_keyword() {
     fi
 }
 
+remove_keyword() {
+    local raw_name kw script_path tmp_file repo_dir confirm exists
+    raw_name="$1"
+
+    if [[ -z "$raw_name" ]]; then
+        read -p "Keyword da rimuovere: " raw_name
+    fi
+
+    kw=$(echo "$raw_name" | tr '[:lower:]' '[:upper:]')
+    if [[ -z "$kw" ]]; then
+        echo "Keyword vuota, annullo."
+        exit 1
+    fi
+
+    script_path=$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")
+
+    if command -v rg >/dev/null 2>&1; then
+        rg -q "\\[\"$kw\"\\]" "$script_path"
+        exists=$?
+    else
+        grep -q "\\[\"$kw\"\\]" "$script_path"
+        exists=$?
+    fi
+    if [[ $exists -ne 0 ]]; then
+        echo "Keyword '$kw' non trovata."
+        exit 1
+    fi
+
+    tmp_file="$(mktemp)"
+    if ! awk -v kw="\\[\\\"$kw\\\"\\]" '
+        $0 ~ /KEYWORDS=\(/ {print; in_block=1; next}
+        in_block && $0 ~ /^\)/ {print; in_block=0; next}
+        in_block && $0 ~ kw {next}
+        {print}
+    ' "$script_path" > "$tmp_file"; then
+        echo "Errore durante l'aggiornamento del file."
+        rm -f "$tmp_file"
+        exit 1
+    fi
+    mv "$tmp_file" "$script_path"
+
+    echo "Keyword '$kw' rimossa."
+
+    repo_dir=$(cd "$(dirname "$script_path")" && pwd)
+    if git -C "$repo_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        read -p "Vuoi fare add/commit/push della rimozione? (y/n): " confirm
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            git -C "$repo_dir" add "$script_path"
+            git -C "$repo_dir" commit -m "Remove keyword $kw"
+            git -C "$repo_dir" push
+        fi
+    else
+        echo "Repo git non trovata, niente push."
+    fi
+}
+
 # --- Keyword primarie con colore ---
 declare -A KEYWORDS
 KEYWORDS=(
 ["PERFORMANCE"]="${CYAN}PERFORMANCE${RESET}"
 ["BUG"]="${RED}BUG${RESET}"
 ["FEATURE"]="${YELLOW}FEATURE${RESET}"
+["TEST"]="${RED}T${YELLOW}E${GREEN}S${CYAN}T${RESET}"
 )
 
 # --- Stati BUG ---
 declare -A BUG_STATES
 BUG_STATES=(
-["solved"]="${GREEN}SOLVED${RESET}"
-["found"]="${YELLOW}FOUND${RESET}"
-["fix"]="${ORANGE}FIX IN PROGRESS${RESET}"
+["FIXED"]="${GREEN}FIXED${RESET}"
+["FOUND"]="${YELLOW}FOUND${RESET}"
+["FIXING"]="${ORANGE}FIX IN PROGRESS${RESET}"
 )
 
 # --- Stati Feature ---
 declare -A FEATURE_STATES
 FEATURE_STATES=(
-["new"]="${GREEN}NEW${RESET}"
-["update"]="${CYAN}UPDATE${RESET}"
+["NEW"]="${GREEN}NEW${RESET}"
+["UPDATE"]="${CYAN}UPDATE${RESET}"
 )
 
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
@@ -211,8 +299,13 @@ if [[ "$1" == "--keys" || "$1" == "-k" ]]; then
     exit 0
 fi
 
-if [[ "$1" == "--add" ]]; then
+if [[ "$1" == "--add" || "$1" == "-add" || "$1" == "-a" ]]; then
     add_keyword "$2" "$3"
+    exit 0
+fi
+
+if [[ "$1" == "--remove" || "$1" == "-remove" || "$1" == "-r" ]]; then
+    remove_keyword "$2"
     exit 0
 fi
 
@@ -281,7 +374,7 @@ HEADER="${KEYWORDS[$keyword]}"
 # --- Stato BUG ---
 if [[ "$keyword" == "BUG" ]]; then
     while true; do
-	printf "Stato ${RED}BUG${RESET} (${GREEN}SOLVED${RESET} / ${YELLOW}FOUND${RESET} / ${ORANGE}FIX IN PROGRESS${RESET}): "
+	printf "Stato ${RED}BUG${RESET} (${GREEN}FIXED${RESET} / ${YELLOW}FOUND${RESET} / ${ORANGE}FIX IN PROGRESS${RESET}): "
         read bugstate
         bugstate_lower=$(echo "$bugstate" | tr '[:upper:]' '[:lower:]')
 
@@ -290,7 +383,7 @@ if [[ "$keyword" == "BUG" ]]; then
             HEADER="${RED}BUG: $state${RESET}"
             break
         else
-            echo "Se continui a digitare roba a caso finiamo domani, prova con solved, found o fix, buliccio."
+            echo "Se continui a digitare roba a caso finiamo domani, prova con FIXED, found o fix, buliccio."
         fi
     done
 fi
