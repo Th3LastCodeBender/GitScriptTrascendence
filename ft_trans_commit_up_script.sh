@@ -39,28 +39,29 @@ show_keys() {
     for key in "${keys[@]}"; do
         last_key="${keys[-1]}"
 
-        if [[ "$key" == "$last_key" ]]; then
-            printf '  -- %b\n' "${KEYWORDS[$key]}"
-            branch_prefix="  "
-            child_prefix="      "
-        else
-            printf "  |-- %b\n" "${KEYWORDS[$key]}"
-            branch_prefix="  |"
-            child_prefix="  |   "
-        fi
+        printf "  |-- %b\n" "${KEYWORDS[$key]}"
+        branch_prefix="  |"
+        child_prefix="  |   "
 
         if [[ "$key" == "BUG" ]]; then
             printf "%s|\n" "$child_prefix"
             mapfile -t bug_keys < <(printf '%s\n' "${!BUG_STATES[@]}" | sort)
             local i=0
-            local total=${#bug_keys[@]}
+            local total=0
+            local b val
+            local -A seen_bug=()
+            local bug_vals=()
             for b in "${bug_keys[@]}"; do
-                ((i++))
-                if [[ $i -eq $total ]]; then
-                    printf "%s--> %b\n" "$child_prefix" "${BUG_STATES[$b]}"
-                else
-                    printf "%s|--> %b\n" "$child_prefix" "${BUG_STATES[$b]}"
+                val="${BUG_STATES[$b]}"
+                if [[ -z "${seen_bug[$val]+x}" ]]; then
+                    bug_vals+=("$val")
+                    seen_bug[$val]=1
                 fi
+            done
+            total=${#bug_vals[@]}
+            for val in "${bug_vals[@]}"; do
+                ((i++))
+                printf "%s|--> %b\n" "$child_prefix" "$val"
             done
         fi
 
@@ -68,14 +69,21 @@ show_keys() {
             printf "%s|\n" "$child_prefix"
             mapfile -t feature_keys < <(printf '%s\n' "${!FEATURE_STATES[@]}" | sort)
             local i=0
-            local total=${#feature_keys[@]}
+            local total=0
+            local f val
+            local -A seen_feat=()
+            local feat_vals=()
             for f in "${feature_keys[@]}"; do
-                ((i++))
-                if [[ $i -eq $total ]]; then
-                    printf "%s--> %b\n" "$child_prefix" "${FEATURE_STATES[$f]}"
-                else
-                    printf "%s|--> %b\n" "$child_prefix" "${FEATURE_STATES[$f]}"
+                val="${FEATURE_STATES[$f]}"
+                if [[ -z "${seen_feat[$val]+x}" ]]; then
+                    feat_vals+=("$val")
+                    seen_feat[$val]=1
                 fi
+            done
+            total=${#feat_vals[@]}
+            for val in "${feat_vals[@]}"; do
+                ((i++))
+                printf "%s|--> %b\n" "$child_prefix" "$val"
             done
         fi
 
