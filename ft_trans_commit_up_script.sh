@@ -238,10 +238,10 @@ remove_keyword() {
     fi
 
     tmp_file="$(mktemp)"
-    if ! awk -v kw="\\[\\\"$kw\\\"\\]" '
+    if ! awk -v kw="$kw" '
         $0 ~ /KEYWORDS=\(/ {print; in_block=1; next}
         in_block && $0 ~ /^\)/ {print; in_block=0; next}
-        in_block && $0 ~ kw {next}
+        in_block && index($0, "[\"" kw "\"]") {next}
         {print}
     ' "$script_path" > "$tmp_file"; then
         echo "Errore durante l'aggiornamento del file."
@@ -268,6 +268,7 @@ remove_keyword() {
 # --- Keyword primarie con colore ---
 declare -A KEYWORDS
 KEYWORDS=(
+["TEST"]="${RED}T${YELLOW}E${GREEN}S${CYAN}T${RESET}"
 )
 
 # --- Stati BUG ---
