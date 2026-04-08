@@ -1,6 +1,7 @@
 #!/bin/bash
 
 CALL_DIR=$(pwd)
+REPO_ROOT=$(git -C "$CALL_DIR" rev-parse --show-toplevel 2>/dev/null)
 
 # --- Colori ANSI ---
 RED=$'\033[1;31m'
@@ -21,7 +22,7 @@ show_help() {
     cat <<'EOF' | sed "s/__SCRIPT__/${script_name}/g"
 Uso: __SCRIPT__
 
-    __SCRIPT__ --> git add . guidato
+    __SCRIPT__ --> git -C "$REPO_ROOT" add . guidato
     [file ...] --> per git add di singoli file
     --help     --> display delle istruzioni di utilizzo
     --keys     --> display di tutte le Keywords
@@ -329,18 +330,18 @@ if [[ -n "$1" && "$1" == -* ]]; then
 fi
 
 # --- Controllo repo git ---
-if [ ! -d "$CALL_DIR/.git" ]; then
+if [[ -z "$REPO_ROOT" ]]; then
     echo "❌ Non sei in una cartella git, coglione."
     exit 1
 fi
 
 # --- Controllo se esistono file già staged ---
-if ! git diff --cached --quiet; then
+if ! git -C "$REPO_ROOT" diff --cached --quiet; then
     echo "Guarda bischero, che se aggiungi intelligente dopo intelligente non diventi mica doppiamente intelligente, solo doppiamente scimmia, (c'è roba già staged)"
     exit 1
 fi
 
-git pull
+git -C "$REPO_ROOT" pull
 
 # # --- Pulizia makefile ---
 # echo "🚮 Cerco Makefile ed eseguo 'make fclean'..."
@@ -353,7 +354,12 @@ git pull
 # --- Controllo esistenza file (git add verrà fatto dopo) ---
 if [ "$#" -gt 0 ]; then
     for file in "$@"; do
-        if [ ! -e "$file" ]; then
+        if [[ "$file" = /* ]]; then
+            check_path="$file"
+        else
+            check_path="$REPO_ROOT/$file"
+        fi
+        if [ ! -e "$check_path" ]; then
             echo "allora allora allora, sembra che qui qualcuno stia ancora bevendo liquido per imbalsamazione al posto del tè serale, quei file che vedi esistono solo nella tua testa, SCIMMIA!"
             exit 1
         fi
@@ -439,7 +445,7 @@ while IFS= read -r -d '' entry; do
     fi
 
     files+=("$path")
-done < <(git status --porcelain -z -uall)
+done < <(git -C "$REPO_ROOT" status --porcelain -z -uall)
 
 file_list=""
 count=0
@@ -471,15 +477,15 @@ commit_msg="$HEADER | $msg | $file_list"
 
 # --- Gestione git add (dopo formato commit) ---
 if [ "$#" -gt 0 ]; then
-    git add "$@"
+    git -C "$REPO_ROOT" add "$@"
 else
     git add .
 fi
 
 # --- Git operations ---
-git commit -m "$commit_msg"
+git -C "$REPO_ROOT" commit -m "$commit_msg"
 
-if git push; then
+if git -C "$REPO_ROOT" push; then
     echo "✅ Push eseguito."
 else
     echo "❌ Errore nel push."
