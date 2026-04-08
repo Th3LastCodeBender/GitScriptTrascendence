@@ -336,19 +336,19 @@ fi
 
 # --- Controllo se esistono file già staged ---
 if ! git diff --cached --quiet; then
-    echo "Guarda bischero, che se aggiungi intelligente dopo intelligente non diventi mica doppiamente intelligente, solo doppiamente scimmia"
+    echo "Guarda bischero, che se aggiungi intelligente dopo intelligente non diventi mica doppiamente intelligente, solo doppiamente scimmia, (c'è roba già staged)"
     exit 1
 fi
 
 git pull
 
-# --- Pulizia makefile ---
-echo "🚮 Cerco Makefile ed eseguo 'make fclean'..."
-find "$CALL_DIR" -type f -name "Makefile" | while read -r makefile; do
-    dir=$(dirname "$makefile")
-    echo "🧹 Pulizia in '$dir'"
-    (cd "$dir" && make fclean)
-done
+# # --- Pulizia makefile ---
+# echo "🚮 Cerco Makefile ed eseguo 'make fclean'..."
+# find "$CALL_DIR" -type f -name "Makefile" | while read -r makefile; do
+#     dir=$(dirname "$makefile")
+#     echo "🧹 Pulizia in '$dir'"
+#     (cd "$dir" && make fclean)
+# done
 
 # --- Controllo esistenza file (git add verrà fatto dopo) ---
 if [ "$#" -gt 0 ]; then
