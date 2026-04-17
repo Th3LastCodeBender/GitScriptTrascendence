@@ -16,6 +16,18 @@ WHITE=$'\033[1;97m'
 GRAY=$'\033[0;90m'
 RESET=$'\033[0m'
 
+abbreviate_path() {
+    local path="$1"
+    local parts
+    IFS='/' read -ra parts <<< "$path"
+    local len=${#parts[@]}
+    if [[ $len -le 3 ]]; then
+        echo "$path"
+    else
+        echo "${parts[0]}/...${parts[-2]}/${parts[-1]}"
+    fi
+}
+
 show_help() {
     local script_name
     script_name=$(resolve_help_name)
@@ -341,7 +353,12 @@ if ! git -C "$REPO_ROOT" diff --cached --quiet; then
     exit 1
 fi
 
-git -C "$REPO_ROOT" pull
+output=$(git -C "$REPO_ROOT" pull 2>&1)
+if echo "$output" | grep -q "Already up to date"; then
+    echo "Script up to date!"
+else
+    echo "The script was updated!"
+fi
 
 # # --- Pulizia makefile ---
 # echo "🚮 Cerco Makefile ed eseguo 'make fclean'..."
@@ -454,16 +471,16 @@ total=${#files[@]}
 for file in "${files[@]}"; do
     ((count++))
 
-    if [[ $count -le 10 ]]; then
+    if [[ $count -le 3 ]]; then
         if [[ -z "$file_list" ]]; then
-            file_list="$file"
+            file_list="$(abbreviate_path "$file")"
         else
-            file_list="$file_list, $file"
+            file_list="$file_list, $(abbreviate_path "$file")"
         fi
     fi
 done
 
-if [[ $total -gt 10 ]]; then
+if [[ $total -gt 3 ]]; then
     file_list="$file_list..."
     echo "Edo piantala"
 fi
