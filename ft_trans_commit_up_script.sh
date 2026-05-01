@@ -313,6 +313,8 @@ declare -A FEATURE_STATES
 FEATURE_STATES=(
 ["new"]="${GREEN}NEW${RESET}"
 ["update"]="${CYAN}UPDATE${RESET}"
+["work in progress"]="${ORANGE}WORK IN PROGRESS${RESET}"
+["work"]="${ORANGE}WORK IN PROGRESS${RESET}"
 )
 
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
@@ -427,7 +429,7 @@ fi
 # --- Stato FEATURE ---
 if [[ "$keyword" == "FEATURE" ]]; then
     while true; do
-	printf "Stato ${YELLOW}FEATURE${RESET} (${GREEN}NEW${RESET} / ${CYAN}UPDATE${RESET}): "
+	printf "Stato ${YELLOW}FEATURE${RESET} (${GREEN}NEW${RESET} / ${CYAN}UPDATE${RESET} / ${ORANGE}WORK IN PROGRESS${RESET}): "
         read featurestate
         featurestate_lower=$(echo "$featurestate" | tr '[:upper:]' '[:lower:]')
 
