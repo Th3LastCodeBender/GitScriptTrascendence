@@ -294,6 +294,7 @@ KEYWORDS=(
 ["FEATURE"]="${YELLOW}FEATURE${RESET}"
 ["TEST"]="${RED}T${YELLOW}E${GREEN}S${CYAN}T${RESET}"
 ["CLEANING"]="${MAGENTA}CLEANING${RESET}"
+["REFACTORING"]="${GREEN}REFACTORING${RESET}"
 )
 
 # --- Stati BUG ---
@@ -355,7 +356,7 @@ fi
 
 output=$(git -C "$REPO_ROOT" pull 2>&1)
 if echo "$output" | grep -q "Already up to date"; then
-    echo "Script up to date!"
+    echo "Script up to latest version!"
 else
     echo "The script was updated!"
 fi
