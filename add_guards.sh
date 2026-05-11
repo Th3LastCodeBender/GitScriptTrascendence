@@ -25,18 +25,18 @@ find . \( -name "*.h" -o -name "*.hpp" \) | while read -r file; do
     second_line=$(grep -n '^/\* ************************************************************************** \*/' "$file" | sed -n '2p' | cut -d: -f1)
 
     if [ -z "$second_line" ]; then
-        echo "Attenzione: $file non contiene header 42 valido, saltato."
-        continue
+        # Nessun header 42: inserisce le guards all'inizio del file
+        insert_line=1
+    else
+        # Calcola la riga di inserimento: due righe dopo l'header 42
+        insert_line=$((second_line + 2))
     fi
-
-    # Calcola la riga di inserimento: due righe dopo
-    insert_line=$((second_line + 2))
 
     tmpfile=$(mktemp)
 
     awk -v insert_line="$insert_line" -v guard="$guard" '
     NR == insert_line {
-        print ""
+        if (insert_line > 1) print ""
         print "#ifndef " guard
         print "#define \t" guard
     }
